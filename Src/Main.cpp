@@ -2,6 +2,9 @@
 #include <GLAD/glad.h>
 #include <GLFW/glfw3.h>
 #include <stb/stb_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include "Shader.h"
 
@@ -27,30 +30,31 @@ void ProcessInputs(GLFWwindow *window);
 // unsigned int indices[] = {
 //     1, 0, 2};
 
-// Retangle
-// float vertices[] = {
-//     0.5f, 0.5f, 0.0f,   // top right
-//     0.5f, -0.5f, 0.0f,  // bottom right
-//     -0.5f, -0.5f, 0.0f, // bottom left
-//     -0.5f, 0.5f, 0.0f   // top left
-// };
-// unsigned int indices[] = {
-//     3, 2, 1, // first triangle
-//     1, 0, 3  // second triangle
-// };
-
-// Rectangle (textured)
+// Retangle (textured)
 float vertices[] = {
-    // positions          // colors           // texture coords
-    0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,   // top right
-    0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,  // bottom right
-    -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left
-    -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f   // top left
+    // positions          // texture coords
+    0.5f, 0.5f, 0.0f, 1.0f, 1.0f,   // top right
+    0.5f, -0.5f, 0.0f, 1.0f, 0.0f,  // bottom right
+    -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // bottom left
+    -0.5f, 0.5f, 0.0f, 0.0f, 1.0f   // top left
 };
 unsigned int indices[] = {
-    2, 1, 3, // first triangle
+    3, 2, 1, // first triangle
     1, 0, 3  // second triangle
 };
+
+// Rectangle (textured) (colored)
+// float vertices[] = {
+//     // positions          // colors           // texture coords
+//     0.5f, 0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f,   // top right
+//     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,  // bottom right
+//     -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom left
+//     -0.5f, 0.5f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f   // top left
+// };
+// unsigned int indices[] = {
+//     2, 1, 3, // first triangle
+//     1, 0, 3  // second triangle
+// };
 
 int main()
 {
@@ -104,17 +108,19 @@ int main()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
 
+#define STRIDE_IN_BYTES (5 * sizeof(float))
+
     // Pos data
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, STRIDE_IN_BYTES, (void *)0);
     glEnableVertexAttribArray(0);
 
     // Color data
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
-    glEnableVertexAttribArray(1);
+    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, STRIDE_IN_BYTES, (void *)(3 * sizeof(float)));
+    // glEnableVertexAttribArray(1);
 
     // Texture data
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
-    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, STRIDE_IN_BYTES, (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     // Gen & load textures
     unsigned int texture1, texture2;
@@ -170,6 +176,10 @@ int main()
     ourShader.SetInt("texture2", 1); // or with shader class
 
     // Render loop setup
+    glm::mat4 trans = glm::mat4(1.0f);
+    ourShader.Use();
+    unsigned int transformLoc = glGetUniformLocation(ourShader.ID, "transform");
+
     glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
     glPolygonMode(GL_FRONT, GL_FILL);
     glEnable(GL_CULL_FACE);
@@ -181,12 +191,22 @@ int main()
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        ourShader.Use();
-
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture1);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, texture2);
+
+        // Init identity matrix & execute transformations
+        trans = glm::mat4(1.f);
+
+        trans = glm::rotate(trans, (float)glfwGetTime(), glm::vec3(0.0f, 0.0f, 1.0f));
+        trans = glm::scale(trans, glm::vec3(-sin((float)glfwGetTime()), -sin((float)glfwGetTime()), 1.f));
+        trans = glm::translate(trans, glm::vec3(sin((float)glfwGetTime()), sin((float)glfwGetTime()), 0.0f));
+
+        // Render transormations
+        ourShader.Use();
+
+        glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(trans));
 
         glBindVertexArray(VAO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
